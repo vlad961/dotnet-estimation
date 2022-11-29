@@ -18,17 +18,17 @@ namespace Devon4Net.Application.WebAPI.Implementation.Business.SessionManagement
 
             public readonly WebSocket Value { get; init; }
         }
-        private ConcurrentDictionary<long, ConcurrentBag<WebSocketConnection>> _sessions = new ConcurrentDictionary<long, ConcurrentBag<WebSocketConnection>>();
+        private ConcurrentDictionary<string, WebSocket> _connections = new ConcurrentDictionary<string, WebSocket>();
+        private ConcurrentDictionary<long, ConcurrentDictionary<string, WebSocket>> _sessions = new ConcurrentDictionary<long,ConcurrentDictionary<string, WebSocket>>();
 
         public async Task Handle(Guid id, WebSocket webSocket, long sessionId)
         {
-            var socketConnection = new WebSocketConnection { Id = id.ToString(), Value = webSocket };
-            _sessions.AddOrUpdate(sessionId,
-                id => new ConcurrentBag<WebSocketConnection>() { socketConnection },
-                (id, existingBag) =>
+            _connections.TryAdd(id.ToString(), webSocket);
+            _sessions.AddOrUpdate(sessionId, id => _connections,
+                (id, existingDictionary) =>
                 {
-                    existingBag.Add(socketConnection);
-                    return existingBag;
+                    existingDictionary.TryAdd(id.ToString(), webSocket);
+                    return existingDictionary;
                 });
 
             while (webSocket.State == WebSocketState.Open)
