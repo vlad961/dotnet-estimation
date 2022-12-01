@@ -8,5 +8,6 @@ namespace Devon4Net.Application.WebAPI.Implementation.Business.SessionManagement
         Task<string> ReceiveMessage(Guid id, WebSocket webSocket);
         Task SendMessageToSockets(string message, long sessionId);
         Task Send<T>(Message<T> message, long sessionId);
+        Task<(bool, WebSocket)> DeleteWebSocket(long sessionId, string clientId);
     }
 }

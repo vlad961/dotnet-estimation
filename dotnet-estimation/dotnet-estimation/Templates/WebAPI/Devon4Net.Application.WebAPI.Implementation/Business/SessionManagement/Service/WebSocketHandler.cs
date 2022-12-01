@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+﻿using Devon4Net.Infrastructure.Logger.Logging;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using System;
 using System.Collections.Concurrent;
@@ -12,24 +13,28 @@ namespace Devon4Net.Application.WebAPI.Implementation.Business.SessionManagement
 {
     public class WebSocketHandler : IWebSocketHandler
     {
-        public readonly struct WebSocketConnection
-        {
-            public readonly string Id { get; init;}
-
-            public readonly WebSocket Value { get; init; }
-        }
-        private ConcurrentDictionary<string, WebSocket> _connections = new ConcurrentDictionary<string, WebSocket>();
         private ConcurrentDictionary<long, ConcurrentDictionary<string, WebSocket>> _sessions = new ConcurrentDictionary<long,ConcurrentDictionary<string, WebSocket>>();
 
         public async Task Handle(Guid id, WebSocket webSocket, long sessionId)
         {
-            _connections.TryAdd(id.ToString(), webSocket);
-            _sessions.AddOrUpdate(sessionId, id => _connections,
-                (id, existingDictionary) =>
-                {
-                    existingDictionary.TryAdd(id.ToString(), webSocket);
-                    return existingDictionary;
-                });
+            var clientId = id.ToString();
+            //TODO: Delete after implementing a distinct id logic for users.
+            Console.WriteLine("Guid inside WebSocketHandler:" + id);
+            _sessions.AddOrUpdate(sessionId, sessionId =>
+            {
+                //No existing lobby for the given sessionId --> create a new lobby and insert the first client
+                var lobby = new ConcurrentDictionary<string, WebSocket>();
+                lobby.TryAdd(clientId, webSocket);
+                // Save the initial lobby for given sessionId to our sessions dictionary.
+                _sessions.TryAdd(sessionId, lobby);
+                return lobby;
+            },
+            (_, existingLobby) =>
+            {
+                //A lobby for the given sessionId exists --> extend the lobby by the recently joined client
+                existingLobby.TryAdd(clientId, webSocket);
+                return existingLobby;
+            });
 
             while (webSocket.State == WebSocketState.Open)
             {
@@ -49,6 +54,11 @@ namespace Devon4Net.Application.WebAPI.Implementation.Business.SessionManagement
                 if (!string.IsNullOrWhiteSpace(message))
                     return $"<b>{id}</b>: {message}";
             }
+            //TODO: If Client closes the websocket connection, handle gracefully!
+/*            if(receivedMessage.MessageType == WebSocketMessageType.Close)
+            {
+                await webSocket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, string.Empty, CancellationToken.None);
+            }*/
             return null;
         }
 
@@ -71,6 +81,31 @@ namespace Devon4Net.Application.WebAPI.Implementation.Business.SessionManagement
         public async Task Send<T>(Message<T> message, long sessionId)
         {
             await SendMessageToSockets(JsonConvert.SerializeObject(message, new JsonSerializerSettings { ContractResolver = new CamelCasePropertyNamesContractResolver() }), sessionId);
+        }
+
+        public async Task<(bool,WebSocket)> DeleteWebSocket(long sessionId, string clientId)
+        {
+            WebSocket socketToRemove;
+            ConcurrentDictionary<string, WebSocket> currentLobby;
+            //Get the current Lobby of clients
+            _sessions.TryGetValue(sessionId, out currentLobby);
+
+            //Delete the client with specified clientId, but keep an instance of the old lobby to compare with, when updating the sessions dictionary.
+            var resultLobby = currentLobby;
+            var deleted = resultLobby.TryRemove(clientId, out socketToRemove);
+            if (!deleted)
+            {
+                socketToRemove = null;
+                Devon4NetLogger.Debug($"The Websocket for client: {clientId} was NOT DELETED!");
+            }
+            else
+            {
+                //Initiate a websocket close from server towards client
+                await socketToRemove.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, string.Empty, CancellationToken.None);
+            }
+            //Update the sessions dictrionary, to free up resources of unused WebSockets
+            _sessions.TryUpdate(sessionId, resultLobby, currentLobby);
+            return (deleted, socketToRemove);
         }
     }
 }

@@ -39,5 +39,19 @@ namespace Devon4Net.Application.WebAPI.Implementation.Business.SessionManagement
                 context.Response.StatusCode = 400;
             }
         }
+
+        [HttpDelete("/{sessionId:long}/ws/delete")]
+        public async Task<IActionResult> Delete(long sessionId, string clientId)
+        {
+            var (deleted, webSocket) = await WebsocketHandler.DeleteWebSocket(sessionId, clientId);
+            if (!deleted)
+            {
+                return BadRequest("Client was not deleted");
+            }
+            else
+            {
+                return Ok($"Server: Initiated websocketconnection close for client: {clientId}");
+            }
+        }
     }
 }
