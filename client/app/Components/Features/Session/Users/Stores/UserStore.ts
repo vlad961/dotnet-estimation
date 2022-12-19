@@ -22,12 +22,9 @@ export const useSessionUserStore = create<ISessionUserState>()((set) => ({
           {
             user.online = true;
             user.role = payload.role;
-            user.token = "";
           }
         });
-        draft.users = draft.users.filter((user: IUser) => {
-          if(user.token === null || user.token === "") return true;
-        });
+        draft.users.filter((user: IUser) => user.token === null)
         draft.users = uniqBy(draft.users, JSON.stringify);
         console.log("useradd:"+ JSON.stringify(draft.users));
       })
@@ -44,27 +41,22 @@ export const useSessionUserStore = create<ISessionUserState>()((set) => ({
     produce((draft) => {
       if(payload.availableClients != undefined && payload.availableClients.length != 0)
       {
-        let onlineUsers = payload.availableClients;
+        console.log("currently online:"+ JSON.stringify(payload.availableClients));
         draft.users.forEach((user: IUser) => {
-          for(var i = 0; i < onlineUsers.length; i++)
-          {
-            let onlineUser = onlineUsers[i];
-            if(user.id.trim() === onlineUser)
+          payload.availableClients.forEach(onlineUser => {
+            if(user.id.trim() === onlineUser.trim())
             {
               user.online = true;
-              break;
             }
-            else {
-              user.online = false;
-            }
-          }
+          });
         });
-        draft.users = draft.users.filter((user: IUser) => {
-          if(user.online === true)
+        draft.users.filter((user: IUser) => {
+          if(!payload.availableClients.includes(user.id))
           {
-            return true
+            user.online = false;
           }
         });
+        draft.users = draft.users.filter((user: IUser) => user.online === true);
         console.log("Online Users:"+ JSON.stringify(draft.users));
       }
     })

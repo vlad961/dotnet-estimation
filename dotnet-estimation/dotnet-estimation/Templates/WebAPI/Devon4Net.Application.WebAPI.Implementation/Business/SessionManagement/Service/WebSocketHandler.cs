@@ -46,26 +46,10 @@ namespace Devon4Net.Application.WebAPI.Implementation.Business.SessionManagement
             // Update the session lobby with the newly joined client
             UpdateSession(sessionId, id, webSocket);
             _sessions.TryGetValue(sessionId, out var currentConnectionsManager);
-            Devon4NetLogger.Debug($"Amount of current Sockets in Lobby: {currentConnectionsManager.GetAll().Count}\nFollowing client joined: {id}");
-            
-            // Notify all lobby users about the recently joined user.
-            var currentlyJoinedClient = new Message<UserDto>
-            {
-                Type = MessageType.UserJoined,
-                Payload = joinedUser,
-            };
-            var availableClients = currentConnectionsManager.GetAvailableSocketIds();
-            var updateClients = new Message<UpdateDto>
-            {
-                Type = MessageType.UserRefreshed,
-                Payload = new UpdateDto
-                {
-                    AvailableClients = availableClients,
-                }
-            };
-            await Send(currentlyJoinedClient, sessionId);
-            await Send(updateClients, sessionId);
-
+            Devon4NetLogger.Debug($"Amount of current Sockets in our Lobby: {currentConnectionsManager.GetAll().Count}\nFollowing client joined: {id}");
+            // Broadcast the ids of the currently logged in clients after join
+            var availableClientIds = currentConnectionsManager.GetAvailableSocketIds();
+            await Send(availableClientIds, sessionId);
 
             while (webSocket.State == WebSocketState.Open)
             {

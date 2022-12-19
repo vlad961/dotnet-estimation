@@ -87,15 +87,14 @@ export default function Session({ id, tasks, users, auth, inviteToken }: any) {
         let { payload } = parsed as IMessage<IUser>;
         console.log(payload);
         addUser(payload);
-      }
-      case Type.UserRefreshed:{
-        let { payload } = parsed as IMessage<IUpdateDto>;
-        if(payload.availableClients != undefined)
-        {
-          console.log("Refreshing users");
-          changeOnlineStatus(payload);
         }
-      }
+      case Type.UserRefreshed: {
+        let { payload } = parsed as IMessage<IUpdateDto>;
+           if (payload.availableClients != undefined) {
+            console.log("Refreshing users");
+            changeOnlineStatus(payload);
+            }
+        }
       default: {
         break;
       }
